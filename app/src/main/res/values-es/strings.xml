@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">InWall Tester</string>
+	<string name="bt_not_availabe">Bluetooth no disponible</string>
+	<string name="bt_not_enabled">Bluetooth no habilitado</string>
+	<string name="searching">Buscando...</string>	
+	<string name="found">Encontrado: </string>
+</resources>
