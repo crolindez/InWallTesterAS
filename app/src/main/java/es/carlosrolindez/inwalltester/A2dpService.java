@@ -4,6 +4,7 @@ import android.annotation.TargetApi;
 import android.bluetooth.BluetoothA2dp;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.bluetooth.IBluetoothA2dp;
 import android.content.BroadcastReceiver;
@@ -25,7 +26,6 @@ import android.widget.Toast;
 import java.lang.reflect.Method;
 import java.util.List;
 
-import es.carlosrolindez.inwalltester.InWallTesterActivity.InWallHandler;
 
 
 public class A2dpService {
@@ -48,26 +48,39 @@ public class A2dpService {
 	
 	private boolean connectedA2dp;
 	
-    private InWallHandler mHandler;
+    private InWallTesterActivity.InWallHandler mHandler;
     
     
     private AudioManager am;
     
 	
 
-	public A2dpService(Context context,InWallHandler handler) {
+	public A2dpService(Context context,InWallTesterActivity.InWallHandler handler) {
 		
 		mContextBt = context;
 		connectedA2dp = false;
 		mHandler = handler;
+		Log.e(TAG,mContextBt.toString());
+		Log.e(TAG,mHandler.toString());
 
 		am = (AudioManager)mContextBt.getSystemService(Context.AUDIO_SERVICE);
-		
-		mBluetoothAdapter=BluetoothAdapter.getDefaultAdapter();
-		mBluetoothAdapter.getProfileProxy(context, mProfileListener, BluetoothProfile.A2DP);
 
-		
-		IntentFilter filter2 = new IntentFilter(BluetoothDevice.ACTION_FOUND);			
+        if (Build.VERSION.SDK_INT >= 18) {
+            final BluetoothManager bluetoothManager = (BluetoothManager) mContextBt.getSystemService(Context.BLUETOOTH_SERVICE);
+            mBluetoothAdapter = bluetoothManager.getAdapter(); //Lint Error..
+        } else {
+            mBluetoothAdapter=BluetoothAdapter.getDefaultAdapter();
+        }
+
+        mBluetoothAdapter.getProfileProxy(context, mProfileListener, BluetoothProfile.A2DP);
+        doDiscovery();
+
+        IntentFilter filter2;
+        if (Build.VERSION.SDK_INT >= 23) {
+            filter2 = new IntentFilter(BluetoothDevice.ACTION_NAME_CHANGED);
+        } else {
+            filter2 = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+        }
 		IntentFilter filter3 = new IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);			
         IntentFilter filter4 = new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED);
         IntentFilter filter5 = new IntentFilter(BluetoothDevice.ACTION_ACL_DISCONNECTED);	
@@ -89,11 +102,21 @@ public class A2dpService {
 
         	stopPlayBt();
             // When discovery finds a device
-            if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+            if (BluetoothDevice.ACTION_NAME_CHANGED.equals(action)) {
+                // Get the BluetoothDevice object from the Intent
+                Log.e(TAG,"Name changed ");
+                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                Log.e(TAG,"Found "+device.getName());
+                mHandler.obtainMessage(InWallTesterActivity.InWallHandler.MESSAGE_FOUND, -1, -1, device.getName()).sendToTarget();
+                if (device.getAddress().substring(0,8).equals(inWallFootprint) ||  device.getAddress().substring(0,8).equals(inWall2Footprint)) {
+                    Log.e(TAG,"Start connection to " + device.getName());
+                    switchA2dp(device);
+                }
+            } else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 // Get the BluetoothDevice object from the Intent
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 Log.e(TAG,"Found "+device.getName());
-                mHandler.obtainMessage(InWallHandler.MESSAGE_FOUND, -1, -1, device.getName()).sendToTarget(); 
+                mHandler.obtainMessage(InWallTesterActivity.InWallHandler.MESSAGE_FOUND, -1, -1, device.getName()).sendToTarget();
         		if (device.getAddress().substring(0,8).equals(inWallFootprint) ||  device.getAddress().substring(0,8).equals(inWall2Footprint)) {
         			Log.e(TAG,"Start connection to " + device.getName());
         			switchA2dp(device);
@@ -112,7 +135,7 @@ public class A2dpService {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);  
                 if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
                     Toast.makeText(context, device.getName() + " Connected", Toast.LENGTH_SHORT).show();
-                    mHandler.obtainMessage(InWallHandler.MESSAGE_CONNECTED, -1, -1, device.getAddress() + device.getName()).sendToTarget();  
+                    mHandler.obtainMessage(InWallTesterActivity.InWallHandler.MESSAGE_CONNECTED, -1, -1, device.getAddress() + device.getName()).sendToTarget();
                     Log.e(TAG,"Connected to bonded "+device.getName());  
                     playBt();   
                 } else if (device.getBondState()==BluetoothDevice.BOND_BONDING) {
@@ -127,7 +150,7 @@ public class A2dpService {
                 Toast.makeText(context, device.getName() + " Disconnected", Toast.LENGTH_SHORT).show();
                 Log.e(TAG,"Disconnected "+device.getName());
                 connectedA2dp = false;
-                mHandler.obtainMessage(InWallHandler.MESSAGE_DISCONNECTED, -1, -1, device.getName()).sendToTarget();
+                mHandler.obtainMessage(InWallTesterActivity.InWallHandler.MESSAGE_DISCONNECTED, -1, -1, device.getName()).sendToTarget();
           		if (device.getAddress().substring(0,8).equals(inWallFootprint) || device.getAddress().substring(0,8).equals(inWall2Footprint)) {
         			Log.e(TAG,"Unpairing " +device.getName());
         			removeBond(device);
@@ -137,7 +160,7 @@ public class A2dpService {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
                     Toast.makeText(context, device.getName() + " Connected", Toast.LENGTH_SHORT).show();
-                    mHandler.obtainMessage(InWallHandler.MESSAGE_CONNECTED, -1, -1, device.getAddress() + device.getName()).sendToTarget();                  	
+                    mHandler.obtainMessage(InWallTesterActivity.InWallHandler.MESSAGE_CONNECTED, -1, -1, device.getAddress() + device.getName()).sendToTarget();
         			Log.e(TAG,"Bond changed to Bonded "+ device.getName()+ " ConnectA2dp");
                 	switchBluetoothA2dp(device);  
                 	playBt();  
@@ -350,11 +373,15 @@ public class A2dpService {
 
 	private BluetoothProfile.ServiceListener mProfileListener = new BluetoothProfile.ServiceListener() {
 
-        public void onServiceConnected(int profile, BluetoothProfile proxy) {        	
+        public void onServiceConnected(int profile, BluetoothProfile proxy) {
+            Log.e(TAG,"OnServiceConnected");
             if (profile == BluetoothProfile.A2DP) {
+                Log.e(TAG,"OnServiceConnected A2DP");
                 BluetoothA2dp btA2dp = (BluetoothA2dp) proxy;
                 List<BluetoothDevice> a2dpConnectedDevices = btA2dp.getConnectedDevices();
-/*                if (a2dpConnectedDevices.size() != 0) {
+ /*               Log.e(TAG,"List of devices size " + a2dpConnectedDevices.size());
+                if (a2dpConnectedDevices.size() != 0) {
+
                 	connectedA2dp = true;
                     for (BluetoothDevice a2dpDevice : a2dpConnectedDevices) {
                     	switchBluetoothA2dp(a2dpDevice);
@@ -399,8 +426,10 @@ public class A2dpService {
 		if   (device != null) {
 
 			if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
+				Log.e(TAG,"switchA2DP CreateBond");
 				createBond(device);
 			} else {
+                Log.e(TAG,"switchA2DP switchBluetoothAdapter");
 				BluetoothAdapter.getDefaultAdapter().cancelDiscovery();
 				switchBluetoothA2dp(device);
 			}

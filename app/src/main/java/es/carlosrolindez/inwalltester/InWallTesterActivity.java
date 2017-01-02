@@ -27,7 +27,7 @@ import android.widget.Toast;
 import java.util.ArrayList;
 
 public class InWallTesterActivity extends AppCompatActivity {
-	private static String TAG = "InWall Tester";
+	private final static String TAG = "InWall Tester";
 
     private BluetoothAdapter mBluetoothAdapter = null;
     
@@ -59,6 +59,13 @@ public class InWallTesterActivity extends AppCompatActivity {
         progressBar = (ProgressBar) findViewById(R.id.progress_spinner);
         setProgressBar(true);
 
+        if (mBluetoothAdapter==null) {
+            Log.e(TAG,"mBluetooth created from null");
+        } else {
+            Log.e(TAG,"mBluetooth overwritten");
+
+        }
+        Log.e(TAG,handler.toString());
 		mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
 
@@ -87,8 +94,14 @@ public class InWallTesterActivity extends AppCompatActivity {
             Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableIntent, Constants.REQUEST_ENABLE_BT);
         } else {
+            if (a2dpService==null) {
+                Log.e(TAG,"a2dpService created from null");
+            } else {
+                Log.e(TAG, "a2dpService overwritten");
+            }
+
             a2dpService = new A2dpService(this,handler);
-            Log.e("FTPServicePing","Started");
+            Log.e(TAG,a2dpService.toString());
         }
         
     }
@@ -98,6 +111,12 @@ public class InWallTesterActivity extends AppCompatActivity {
             case Constants.REQUEST_ENABLE_BT:
                 // When the request to enable Bluetooth returns
                 if (resultCode == Activity.RESULT_OK) {
+                    if (a2dpService==null) {
+                        Log.e(TAG,"a2dpService created from null");
+                    } else {
+                        Log.e(TAG, "a2dpService overwritten");
+                    }
+                    Log.e(TAG,handler.toString());
                     a2dpService = new A2dpService(this,handler);
                 } else {
                     Toast.makeText(this, R.string.bt_not_enabled,Toast.LENGTH_SHORT).show();
@@ -145,6 +164,11 @@ public class InWallTesterActivity extends AppCompatActivity {
  		
 	@Override
 	protected void onDestroy() {
+        if (a2dpService==null) {
+            Log.e(TAG,"a2dpService closed from null");
+        } else {
+            Log.e(TAG, "a2dpService closed from valid value");
+        }
         a2dpService.closeService();
 		super.onDestroy();
 	}
@@ -163,7 +187,7 @@ public class InWallTesterActivity extends AppCompatActivity {
 	    private String deviceMAC;
 	    private String deviceName;
 	    
-	    private Context mLocalContext = null;
+	    private static Context mLocalContext = null;
 
 	    InWallHandler(Context context) {
 	    	mLocalContext = context;
@@ -171,6 +195,11 @@ public class InWallTesterActivity extends AppCompatActivity {
 	    
 	    @Override
 	    public void handleMessage(Message msg) {
+            if (mLocalContext==null) {
+                Log.e(TAG,"handleMessage void");
+            } else {
+                Log.e(TAG,"handleMessage OK");
+            }
 	        switch (msg.what) {
 	            case MESSAGE_CONNECTED:
 	            	deviceMessage = (String) msg.obj;
