@@ -1,8 +1,10 @@
 package es.carlosrolindez.inwalltester;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -13,29 +15,45 @@ import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Message;
+import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.View;
+import android.view.KeyEvent;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 
-public class InWallTesterActivity extends AppCompatActivity {
+import es.carlosrolindez.btcomm.BtListenerManager;
+import es.carlosrolindez.btcomm.bta2dpcomm.BtA2dpConnectionManager;
+
+public class InWallTesterActivity extends AppCompatActivity implements BtListenerManager.RfListener<BluetoothDevice,BtListenerManager.BtEvent>,
+        BtA2dpConnectionManager.BtA2dpProxyListener {
+
 	private final static String TAG = "InWall Tester";
+    private static final int REQUEST_ENABLE_BT = 1;
+
+    private static final String inWallFootprint = "00:0D:18";
+    private static final String inWall2Footprint = "5C:0E:23";
+
+    private enum ActivityState {SCANNING, CONNECTED}
+    private final ActivityState activityState = ActivityState.SCANNING;
 
     private BluetoothAdapter mBluetoothAdapter = null;
-    
-	private final InWallHandler  handler = new InWallHandler(this);
+    private BtListenerManager mBtListenerManager = null;
+    private BtA2dpConnectionManager mBtA2dpConnectionManager = null;
 
 	private TextView message;
 	private TextView messageAux;
-	
+
+    private MenuItem mActionProgressItem;
+
 	private static ArrayAdapter<String> deviceListAdapter = null;
 	private static ArrayList<String> deviceList;
 
@@ -43,32 +61,20 @@ public class InWallTesterActivity extends AppCompatActivity {
 	private ComponentName mRemoteControlResponder;
     private MediaSession mSession;
 
-    private ProgressBar progressBar;
-
-    private A2dpService a2dpService;
+    private AudioManager am;
 
     
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-
 		setContentView(R.layout.activity_inwall_tester);
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        progressBar = (ProgressBar) findViewById(R.id.progress_spinner);
-        setProgressBar(true);
 
-        if (mBluetoothAdapter==null) {
-            Log.e(TAG,"mBluetooth created from null");
-        } else {
-            Log.e(TAG,"mBluetooth overwritten");
-
-        }
-        Log.e(TAG,handler.toString());
 		mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-
+        am = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
 
 		// If the adapter is null, then Bluetooth is not supported
 		if (mBluetoothAdapter == null) {
@@ -82,55 +88,40 @@ public class InWallTesterActivity extends AppCompatActivity {
 		listView.setAdapter(deviceListAdapter); 
 
         message =(TextView) findViewById(R.id.DeviceName); 
-        messageAux =(TextView) findViewById(R.id.DeviceFound); 
-        	
-    }
-	
-    @Override
-    public void onStart() {
-        super.onStart();
+        messageAux =(TextView) findViewById(R.id.DeviceFound);
 
-        if (!mBluetoothAdapter.isEnabled()) {
-            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableIntent, Constants.REQUEST_ENABLE_BT);
-        } else {
-            if (a2dpService==null) {
-                Log.e(TAG,"a2dpService created from null");
-            } else {
-                Log.e(TAG, "a2dpService overwritten");
-            }
-
-            a2dpService = new A2dpService(this,handler);
-            Log.e(TAG,a2dpService.toString());
-        }
-        
+        setProgressBar(ActivityState.SCANNING);
     }
-    
+
+
+
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         switch (requestCode) {
-            case Constants.REQUEST_ENABLE_BT:
+            case REQUEST_ENABLE_BT:
                 // When the request to enable Bluetooth returns
                 if (resultCode == Activity.RESULT_OK) {
-                    if (a2dpService==null) {
-                        Log.e(TAG,"a2dpService created from null");
-                    } else {
-                        Log.e(TAG, "a2dpService overwritten");
-                    }
-                    Log.e(TAG,handler.toString());
-                    a2dpService = new A2dpService(this,handler);
+                    startRfListening();
                 } else {
                     Toast.makeText(this, R.string.bt_not_enabled,Toast.LENGTH_SHORT).show();
                     finish();
                 }
-                break;           
+                break;
         }
     }
+
 
 
     @SuppressWarnings("deprecation")
     @Override
     public void onResume() {
         super.onResume();
+        if (!mBluetoothAdapter.isEnabled()) {
+            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+        }
+        else
+            startRfListening();
+
         if (Build.VERSION.SDK_INT < 21) {
             mAudioManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
             mRemoteControlResponder = new ComponentName(getPackageName(),RemoteControlReceiver.class.getName());
@@ -145,6 +136,7 @@ public class InWallTesterActivity extends AppCompatActivity {
                     .setActions(PlaybackState.ACTION_FAST_FORWARD | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP)
                     .setState(PlaybackState.STATE_PLAYING, 0, 1, PlaybackState.PLAYBACK_POSITION_UNKNOWN)
                     .build();
+            // TODO Next, previous
             mSession.setPlaybackState(state);
         }
 
@@ -160,85 +152,230 @@ public class InWallTesterActivity extends AppCompatActivity {
         } else {
             mSession.release();
         }
-	}   
- 		
-	@Override
-	protected void onDestroy() {
-        if (a2dpService==null) {
-            Log.e(TAG,"a2dpService closed from null");
-        } else {
-            Log.e(TAG, "a2dpService closed from valid value");
-        }
-        a2dpService.closeService();
-		super.onDestroy();
+        if  (mBtListenerManager!=null) mBtListenerManager.closeService();
+        if  (mBtA2dpConnectionManager!=null) mBtA2dpConnectionManager.closeManager();
+
+        if (mBluetoothAdapter!=null) mBluetoothAdapter.cancelDiscovery();
 	}
 
-    public void setProgressBar(boolean visible) {
-        if (visible)    progressBar.setVisibility(View.VISIBLE);
-        else            progressBar.setVisibility(View.INVISIBLE);
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        mActionProgressItem = menu.findItem(R.id.mActionProgress);
+        return true;
     }
 
-	public static class InWallHandler extends Handler {
+/*    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        // Store instance of the menu item containing progress
+        mActionProgressItem = menu.findItem(R.id.mActionProgress);
+        return super.onPrepareOptionsMenu(menu);
+    }*/
 
-	    public static final int MESSAGE_CONNECTED = 1; 
-	    public static final int MESSAGE_DISCONNECTED = 2; 
-	    public static final int MESSAGE_FOUND = 3; 
-	    private String deviceMessage;
-	    private String deviceMAC;
-	    private String deviceName;
-	    
-	    private static Context mLocalContext = null;
+    private void setProgressBar(ActivityState state) {
 
-	    InWallHandler(Context context) {
-	    	mLocalContext = context;
-	    }
-	    
-	    @Override
-	    public void handleMessage(Message msg) {
-            if (mLocalContext==null) {
-                Log.e(TAG,"handleMessage void");
-            } else {
-                Log.e(TAG,"handleMessage OK");
+        switch (state) {
+            case CONNECTED:
+                mBluetoothAdapter.cancelDiscovery();
+                if (mActionProgressItem!=null)  mActionProgressItem.setVisible(false);
+                break;
+            case SCANNING:
+                mBluetoothAdapter.startDiscovery();
+                if (mActionProgressItem!=null)  mActionProgressItem.setVisible(true);
+                break;
+
+        }
+    }
+
+    private void startRfListening() {
+        mBtListenerManager = new BtListenerManager(getApplication(),this);
+        mBtA2dpConnectionManager = new BtA2dpConnectionManager(getApplication(),this);
+        mBtListenerManager.searchBtDevices();
+
+    }
+
+    @Override
+    public void addRfDevice(String name, BluetoothDevice device) {
+
+        messageAux.setText(getResources().getString(R.string.found) + " " + device.getName());
+        if (device.getAddress().substring(0,8).equals(inWallFootprint) ||  device.getAddress().substring(0,8).equals(inWall2Footprint)) {
+            connect2BtA2dp(device);
+        }
+    }
+
+    public void notifyRfEvent(BluetoothDevice device,  BtListenerManager.BtEvent event) {
+        switch (event) {
+            case DISCOVERY_FINISHED:
+                if (activityState!=ActivityState.CONNECTED) {
+                    mBluetoothAdapter.startDiscovery();
+                }
+                break;
+
+            case CONNECTED:
+ //               if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
+                    setProgressBar(ActivityState.CONNECTED);
+                    Toast.makeText(this, device.getName() + " Connected", Toast.LENGTH_SHORT).show();
+                    playBt();
+
+                    message.setText(device.getName());
+                    messageAux.setText(device.getAddress());
+                    if ((device.getName().length() != 11) || (!device.getName().substring(0, 7).equals("KINGBT-"))) {
+                        message.setTextColor(Color.parseColor("#FF0000"));
+                    } else {
+                        message.setTextColor(Color.parseColor("#00FF00"));
+                        if (!deviceList.contains(device.getName())) {
+                            deviceList.add(0, device.getName());
+                            deviceListAdapter.notifyDataSetChanged();
+                        }
+ //                   }
+
+                }
+                break;
+
+            case DISCONNECTED:
+                setProgressBar(ActivityState.SCANNING);
+                message.setText(this.getResources().getString(R.string.searching));
+                message.setTextColor(Color.parseColor("#dddddd"));
+                messageAux.setText("");
+
+                stopPlayBt();
+                Toast.makeText(this, device.getName() + " Disconnected", Toast.LENGTH_SHORT).show();
+
+                removeBond(device);
+
+                mBluetoothAdapter.startDiscovery();
+
+                break;
+
+            case BONDED:
+
+                if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
+                    Toast.makeText(this, device.getName() + " Bonded", Toast.LENGTH_SHORT).show();
+                    connect2BtA2dp(device);
+                    playBt();
+                }
+                break;
+
+        }
+    }
+
+    public void notifyBtA2dpEvent(BluetoothDevice device,  BtA2dpConnectionManager.BtA2dpEvent event) {
+
+        switch (event) {
+            case CONNECTED:
+                Log.e(TAG,"A2dp connected");
+                break;
+
+            case DISCONNECTED:
+                Log.e(TAG,"A2dp disconnected");
+                break;
+
+        }
+
+
+    }
+
+    private void connect2BtA2dp(BluetoothDevice device) {
+        InWallTesterActivity.this.setProgressBar(ActivityState.CONNECTED);
+        if (device.getBondState() != BluetoothDevice.BOND_BONDED)
+                createBond(device);
+        else {
+            if (mBtA2dpConnectionManager!=null)
+                mBtA2dpConnectionManager.disconnectBluetoothA2dp();
+            if (mBtA2dpConnectionManager!=null)
+                mBtA2dpConnectionManager.connectBluetoothA2dp(device);
+        }
+    }
+
+    public void createBond(BluetoothDevice btDevice)
+    {
+        if (Build.VERSION.SDK_INT >= 19) {
+            btDevice.createBond();
+        } else {
+            try
+            {
+                Class class1 = Class.forName("android.bluetooth.BluetoothDevice");
+                Method createBondMethod = class1.getMethod("createBond");
+                createBondMethod.invoke(btDevice);
             }
-	        switch (msg.what) {
-	            case MESSAGE_CONNECTED:
-	            	deviceMessage = (String) msg.obj;
-	            	if (deviceMessage.length()>13) {
-	            		deviceName = deviceMessage.substring(17);
-	            		deviceMAC = deviceMessage.substring(0, 17);
-	            	}
-                    ((InWallTesterActivity)mLocalContext).message.setText(deviceName);
-                    ((InWallTesterActivity)mLocalContext).messageAux.setText(deviceMAC);
+            catch (Exception e)
+            {
+            }
+        }
+    }
+
+    public boolean removeBond(BluetoothDevice btDevice) {
+        try {
+            Class<?> btClass = Class.forName("android.bluetooth.BluetoothDevice");
+            Method removeBondMethod = btClass.getMethod("removeBond");
+            return (Boolean) removeBondMethod.invoke(btDevice);
+        }catch (Exception e) {
+        }
+        return true;
+
+    }
+
+    public void playBt()
+    {
+        new Handler().postDelayed(new Runnable() {
+            public void run() {
+                if (Build.VERSION.SDK_INT >= 19) {
+
+                    long eventtime = SystemClock.uptimeMillis() - 1;
+                    KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
+                    am.dispatchMediaKeyEvent(downEvent);
+
+                    eventtime++;
+                    KeyEvent upEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
+                    am.dispatchMediaKeyEvent(upEvent);
+                } else {
+                    long eventtime = SystemClock.uptimeMillis() - 1;
+
+                    Intent downIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
+                    Intent upIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
+
+                    KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
+                    eventtime++;
+                    KeyEvent upEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
 
 
-            	    if ( (deviceName.length()!=11) || (!deviceName.substring(0,7).equals("KINGBT-")) ) {
-                        ((InWallTesterActivity)mLocalContext).message.setTextColor(Color.parseColor("#FF0000"));
-	            	} else {
-                        ((InWallTesterActivity)mLocalContext).message.setTextColor(Color.parseColor("#00FF00"));
-						if (!deviceList.contains(((InWallTesterActivity)mLocalContext).message.getText().toString()))
-						{
-							deviceList.add(0,((InWallTesterActivity)mLocalContext).message.getText().toString());
-							deviceListAdapter.notifyDataSetChanged(); 
-						}
-	            	}
+                    downIntent.putExtra(Intent.EXTRA_KEY_EVENT, downEvent);
+                    sendBroadcast(downIntent, null);
 
+                    upIntent.putExtra(Intent.EXTRA_KEY_EVENT, upEvent);
+                    sendBroadcast(upIntent, null);
+                }
+            }
+        }, 1500);
+    }
 
-	                break;
-	            case MESSAGE_DISCONNECTED:
-                    ((InWallTesterActivity)mLocalContext).message.setText(mLocalContext.getResources().getString(R.string.searching));
-                    ((InWallTesterActivity)mLocalContext).messageAux.setText("");
-                    ((InWallTesterActivity)mLocalContext).message.setTextColor(Color.parseColor("#dddddd"));
+    public void stopPlayBt()
+    {
+        if (Build.VERSION.SDK_INT >= 19) {
+            long eventtime = SystemClock.uptimeMillis() - 1;
+            KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_STOP, 0);
+            am.dispatchMediaKeyEvent(downEvent);
 
-	                break;
-	            case MESSAGE_FOUND:
-	            	deviceName = (String) msg.obj;
-                    ((InWallTesterActivity)mLocalContext).messageAux.setText(mLocalContext.getResources().getString(R.string.found) + " " + deviceName);
+            eventtime++;
+            KeyEvent upEvent = new KeyEvent(eventtime,eventtime,KeyEvent.ACTION_UP,KeyEvent.KEYCODE_MEDIA_STOP, 0);
+            am.dispatchMediaKeyEvent(upEvent);
+        } else {
+            long eventtime = SystemClock.uptimeMillis() - 1;
 
-	                break;
-   	
+            Intent downIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
+            Intent upIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
 
-	        }
-	    }
-	}
+            KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_STOP, 0);
+            eventtime++;
+            KeyEvent upEvent = 	 new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_STOP, 0);
+
+            downIntent.putExtra(Intent.EXTRA_KEY_EVENT, downEvent);
+            this.sendBroadcast(downIntent, null);
+
+            upIntent.putExtra(Intent.EXTRA_KEY_EVENT, upEvent);
+            this.sendBroadcast(upIntent, null);
+        }
+    }
 
 }

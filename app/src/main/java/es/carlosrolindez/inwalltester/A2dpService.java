@@ -1,32 +1,6 @@
 package es.carlosrolindez.inwalltester;
 
-import android.annotation.TargetApi;
-import android.bluetooth.BluetoothA2dp;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothManager;
-import android.bluetooth.BluetoothProfile;
-import android.bluetooth.IBluetoothA2dp;
-import android.content.BroadcastReceiver;
-import android.content.ComponentName;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.ServiceConnection;
-import android.media.AudioManager;
-import android.os.AsyncTask;
-import android.os.Build;
-import android.os.Handler;
-import android.os.IBinder;
-import android.os.SystemClock;
-import android.util.Log;
-import android.view.KeyEvent;
-import android.widget.Toast;
-
-import java.lang.reflect.Method;
-import java.util.List;
-
-
+/*
 
 public class A2dpService {
 	private static final String TAG = "A2DP Service";
@@ -60,8 +34,6 @@ public class A2dpService {
 		mContextBt = context;
 		connectedA2dp = false;
 		mHandler = handler;
-		Log.e(TAG,mContextBt.toString());
-		Log.e(TAG,mHandler.toString());
 
 		am = (AudioManager)mContextBt.getSystemService(Context.AUDIO_SERVICE);
 
@@ -104,29 +76,22 @@ public class A2dpService {
             // When discovery finds a device
             if (BluetoothDevice.ACTION_NAME_CHANGED.equals(action)) {
                 // Get the BluetoothDevice object from the Intent
-                Log.e(TAG,"Name changed ");
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                Log.e(TAG,"Found "+device.getName());
                 mHandler.obtainMessage(InWallTesterActivity.InWallHandler.MESSAGE_FOUND, -1, -1, device.getName()).sendToTarget();
                 if (device.getAddress().substring(0,8).equals(inWallFootprint) ||  device.getAddress().substring(0,8).equals(inWall2Footprint)) {
-                    Log.e(TAG,"Start connection to " + device.getName());
                     switchA2dp(device);
                 }
             } else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 // Get the BluetoothDevice object from the Intent
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                Log.e(TAG,"Found "+device.getName());
                 mHandler.obtainMessage(InWallTesterActivity.InWallHandler.MESSAGE_FOUND, -1, -1, device.getName()).sendToTarget();
         		if (device.getAddress().substring(0,8).equals(inWallFootprint) ||  device.getAddress().substring(0,8).equals(inWall2Footprint)) {
-        			Log.e(TAG,"Start connection to " + device.getName());
         			switchA2dp(device);
         		}
             // When discovery is finished, change the Activity title
             } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
             	((InWallTesterActivity)context).setProgressBar(false);
-                Log.e(TAG,"Discovery Finished");
             	if (!connectedA2dp) {
-                    Log.e(TAG,"re-Discover");
             		doDiscovery();	
             	}
             
@@ -136,23 +101,18 @@ public class A2dpService {
                 if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
                     Toast.makeText(context, device.getName() + " Connected", Toast.LENGTH_SHORT).show();
                     mHandler.obtainMessage(InWallTesterActivity.InWallHandler.MESSAGE_CONNECTED, -1, -1, device.getAddress() + device.getName()).sendToTarget();
-                    Log.e(TAG,"Connected to bonded "+device.getName());  
                     playBt();   
                 } else if (device.getBondState()==BluetoothDevice.BOND_BONDING) {
-                    Log.e(TAG,"Connected to bonding "+device.getName());  
                 } else {
-                    Log.e(TAG,"Connected to not bonded "+device.getName());    
                 }
                
             } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
   //          	stopPlayBt();
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);  
                 Toast.makeText(context, device.getName() + " Disconnected", Toast.LENGTH_SHORT).show();
-                Log.e(TAG,"Disconnected "+device.getName());
                 connectedA2dp = false;
                 mHandler.obtainMessage(InWallTesterActivity.InWallHandler.MESSAGE_DISCONNECTED, -1, -1, device.getName()).sendToTarget();
           		if (device.getAddress().substring(0,8).equals(inWallFootprint) || device.getAddress().substring(0,8).equals(inWall2Footprint)) {
-        			Log.e(TAG,"Unpairing " +device.getName());
         			removeBond(device);
            		}
                 doDiscovery();  
@@ -161,15 +121,11 @@ public class A2dpService {
                 if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
                     Toast.makeText(context, device.getName() + " Connected", Toast.LENGTH_SHORT).show();
                     mHandler.obtainMessage(InWallTesterActivity.InWallHandler.MESSAGE_CONNECTED, -1, -1, device.getAddress() + device.getName()).sendToTarget();
-        			Log.e(TAG,"Bond changed to Bonded "+ device.getName()+ " ConnectA2dp");
                 	switchBluetoothA2dp(device);  
                 	playBt();  
                 } else if (device.getBondState()==BluetoothDevice.BOND_BONDING) {
-        			Log.e(TAG,"Bond changed to Bonding "+ device.getName());
                 } else if (device.getBondState()==BluetoothDevice.BOND_NONE) {
-        			Log.e(TAG,"Bond changed to none "+ device.getName());
                 }
-                
             }
 		}
 
@@ -274,7 +230,6 @@ public class A2dpService {
 		@Override
 		public void onServiceConnected(ComponentName name, IBinder service) {
 			mBtA2dpIsBound = true;
-            Log.e("ComponentName",name.toString());
 			iBtA2dp = IBluetoothA2dp.Stub.asInterface(service);
 
 			Intent intent = new Intent();
@@ -326,10 +281,8 @@ public class A2dpService {
 			try {
 				if ( (A2dpService.this.iBtA2dp != null) && (A2dpService.this.iBtA2dp.getConnectionState(device) == 0) ) {
 					A2dpService.this.iBtA2dp.connect(device);
-					Log.e(TAG,"connectTask "+device.getName());
 				} else {
 					A2dpService.this.iBtA2dp.disconnect(device);
-					Log.e(TAG,"disconnectTask "+device.getName());
 				}
 
 			} catch (Exception e) {
@@ -374,19 +327,10 @@ public class A2dpService {
 	private BluetoothProfile.ServiceListener mProfileListener = new BluetoothProfile.ServiceListener() {
 
         public void onServiceConnected(int profile, BluetoothProfile proxy) {
-            Log.e(TAG,"OnServiceConnected");
             if (profile == BluetoothProfile.A2DP) {
-                Log.e(TAG,"OnServiceConnected A2DP");
                 BluetoothA2dp btA2dp = (BluetoothA2dp) proxy;
                 List<BluetoothDevice> a2dpConnectedDevices = btA2dp.getConnectedDevices();
- /*               Log.e(TAG,"List of devices size " + a2dpConnectedDevices.size());
-                if (a2dpConnectedDevices.size() != 0) {
 
-                	connectedA2dp = true;
-                    for (BluetoothDevice a2dpDevice : a2dpConnectedDevices) {
-                    	switchBluetoothA2dp(a2dpDevice);
-                    }
-                }*/
                 if (a2dpConnectedDevices.size() == 0) {
                     doDiscovery();              	
                 }
@@ -426,10 +370,8 @@ public class A2dpService {
 		if   (device != null) {
 
 			if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
-				Log.e(TAG,"switchA2DP CreateBond");
 				createBond(device);
 			} else {
-                Log.e(TAG,"switchA2DP switchBluetoothAdapter");
 				BluetoothAdapter.getDefaultAdapter().cancelDiscovery();
 				switchBluetoothA2dp(device);
 			}
@@ -437,9 +379,7 @@ public class A2dpService {
 		}
 	}
 
-	/**
-     * Start device discover with the BluetoothAdapter
-     */
+
     private void doDiscovery() {
         // Indicate scanning in the title
     	((InWallTesterActivity)mContextBt).setProgressBar(true);
@@ -462,3 +402,4 @@ public class A2dpService {
 
 }
 
+*/
