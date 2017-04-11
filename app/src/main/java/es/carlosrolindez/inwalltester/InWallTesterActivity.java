@@ -1,6 +1,5 @@
 package es.carlosrolindez.inwalltester;
 
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
@@ -39,11 +38,8 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 	private final static String TAG = "InWall Tester";
     private static final int REQUEST_ENABLE_BT = 1;
 
-    private static final String inWallFootprint = "00:0D:18";
-    private static final String inWall2Footprint = "5C:0E:23";
-
     private enum ActivityState {SCANNING, CONNECTED}
-    private final ActivityState activityState = ActivityState.SCANNING;
+    private ActivityState activityState = ActivityState.SCANNING;
 
     private BluetoothAdapter mBluetoothAdapter = null;
     private BtListenerManager mBtListenerManager = null;
@@ -52,6 +48,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 	private TextView message;
 	private TextView messageAux;
 
+    private MenuItem scanButton;
     private MenuItem mActionProgressItem;
 
 	private static ArrayAdapter<String> deviceListAdapter = null;
@@ -61,10 +58,9 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 	private ComponentName mRemoteControlResponder;
     private MediaSession mSession;
 
-    private AudioManager am;
 
-    
-	@Override
+
+    @Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_inwall_tester);
@@ -73,8 +69,6 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
         setSupportActionBar(toolbar);
 
 		mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-
-        am = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
 
 		// If the adapter is null, then Bluetooth is not supported
 		if (mBluetoothAdapter == null) {
@@ -90,18 +84,24 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
         message =(TextView) findViewById(R.id.DeviceName); 
         messageAux =(TextView) findViewById(R.id.DeviceFound);
 
-        setProgressBar(ActivityState.SCANNING);
+        mBtListenerManager = new BtListenerManager(getApplication(),this);
+        mBtA2dpConnectionManager = new BtA2dpConnectionManager(getApplication(),this);
+
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mAudioManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
+        if (mBtA2dpConnectionManager!=null) mBtA2dpConnectionManager.disconnectBluetoothA2dp();
+    }
 
 
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         switch (requestCode) {
             case REQUEST_ENABLE_BT:
                 // When the request to enable Bluetooth returns
-                if (resultCode == Activity.RESULT_OK) {
-                    startRfListening();
-                } else {
+                if (resultCode != Activity.RESULT_OK) {
                     Toast.makeText(this, R.string.bt_not_enabled,Toast.LENGTH_SHORT).show();
                     finish();
                 }
@@ -119,11 +119,10 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
             Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
         }
-        else
-            startRfListening();
+
+        setState(activityState);
 
         if (Build.VERSION.SDK_INT < 21) {
-            mAudioManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
             mRemoteControlResponder = new ComponentName(getPackageName(),RemoteControlReceiver.class.getName());
             mAudioManager.registerMediaButtonEventReceiver(mRemoteControlResponder);
         } else {
@@ -152,75 +151,87 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
         } else {
             mSession.release();
         }
-        if  (mBtListenerManager!=null) mBtListenerManager.closeService();
-        if  (mBtA2dpConnectionManager!=null) mBtA2dpConnectionManager.closeManager();
 
-        if (mBluetoothAdapter!=null) mBluetoothAdapter.cancelDiscovery();
 	}
 
     @Override
+    protected void onStop() {
+        super.onStop();
+        if (mBluetoothAdapter!=null) mBluetoothAdapter.cancelDiscovery();
+        if  (mBtListenerManager!=null) mBtListenerManager.closeService();
+        if  (mBtA2dpConnectionManager!=null) mBtA2dpConnectionManager.closeManager();
+    }
+
+    @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
         mActionProgressItem = menu.findItem(R.id.mActionProgress);
+        scanButton = menu.findItem(R.id.mScan);
         return true;
     }
 
-/*    @Override
-    public boolean onPrepareOptionsMenu(Menu menu) {
-        // Store instance of the menu item containing progress
-        mActionProgressItem = menu.findItem(R.id.mActionProgress);
-        return super.onPrepareOptionsMenu(menu);
-    }*/
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
 
-    private void setProgressBar(ActivityState state) {
+        if (id == R.id.mScan) {
+            setState(ActivityState.SCANNING);
+        }
 
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void setState(ActivityState state) {
+        activityState = state;
         switch (state) {
             case CONNECTED:
-                mBluetoothAdapter.cancelDiscovery();
                 if (mActionProgressItem!=null)  mActionProgressItem.setVisible(false);
+                if (scanButton!=null)           scanButton.setVisible(true);
                 break;
+
             case SCANNING:
-                mBluetoothAdapter.startDiscovery();
                 if (mActionProgressItem!=null)  mActionProgressItem.setVisible(true);
+                if (scanButton!=null)           scanButton.setVisible(false);
+                mBluetoothAdapter.startDiscovery();
+                if (mBtA2dpConnectionManager!=null) mBtA2dpConnectionManager.disconnectBluetoothA2dp();
+                if (mBtListenerManager!=null) mBtListenerManager.searchBtDevices();
                 break;
 
         }
     }
 
-    private void startRfListening() {
-        mBtListenerManager = new BtListenerManager(getApplication(),this);
-        mBtA2dpConnectionManager = new BtA2dpConnectionManager(getApplication(),this);
-        mBtListenerManager.searchBtDevices();
-
-    }
 
     @Override
     public void addRfDevice(String name, BluetoothDevice device) {
+        if (activityState!=ActivityState.SCANNING) {
+            return;
+        }
 
-        messageAux.setText(getResources().getString(R.string.found) + " " + device.getName());
-        if (device.getAddress().substring(0,8).equals(inWallFootprint) ||  device.getAddress().substring(0,8).equals(inWall2Footprint)) {
-            connect2BtA2dp(device);
+        messageAux.setText(getResources().getString(R.string.found) + " " + name);
+
+        if (DeviceFilter.filterAddress(device.getAddress())) {
+            if (activityState==ActivityState.SCANNING) {
+                setState(ActivityState.CONNECTED);
+                bond2BtA2dp(device);
+            }
         }
     }
 
     public void notifyRfEvent(BluetoothDevice device,  BtListenerManager.BtEvent event) {
         switch (event) {
             case DISCOVERY_FINISHED:
-                if (activityState!=ActivityState.CONNECTED) {
+                if (activityState==ActivityState.SCANNING) {
                     mBluetoothAdapter.startDiscovery();
                 }
                 break;
 
             case CONNECTED:
- //               if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
-                    setProgressBar(ActivityState.CONNECTED);
                     Toast.makeText(this, device.getName() + " Connected", Toast.LENGTH_SHORT).show();
-                    playBt();
+
 
                     message.setText(device.getName());
                     messageAux.setText(device.getAddress());
-                    if ((device.getName().length() != 11) || (!device.getName().substring(0, 7).equals("KINGBT-"))) {
+                    if (DeviceFilter.filterName(device.getName())) {
                         message.setTextColor(Color.parseColor("#FF0000"));
                     } else {
                         message.setTextColor(Color.parseColor("#00FF00"));
@@ -228,13 +239,11 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
                             deviceList.add(0, device.getName());
                             deviceListAdapter.notifyDataSetChanged();
                         }
- //                   }
-
-                }
+                    }
+  //              playBt();
                 break;
 
             case DISCONNECTED:
-                setProgressBar(ActivityState.SCANNING);
                 message.setText(this.getResources().getString(R.string.searching));
                 message.setTextColor(Color.parseColor("#dddddd"));
                 messageAux.setText("");
@@ -244,16 +253,15 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
                 removeBond(device);
 
-                mBluetoothAdapter.startDiscovery();
+                setState(ActivityState.SCANNING);
 
                 break;
 
             case BONDED:
-
                 if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
                     Toast.makeText(this, device.getName() + " Bonded", Toast.LENGTH_SHORT).show();
                     connect2BtA2dp(device);
-                    playBt();
+
                 }
                 break;
 
@@ -264,11 +272,11 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
         switch (event) {
             case CONNECTED:
-                Log.e(TAG,"A2dp connected");
+                Log.e(TAG,"A2DP CONNECTED");
                 break;
 
             case DISCONNECTED:
-                Log.e(TAG,"A2dp disconnected");
+                Log.e(TAG,"A2DP DISCONNECTED");
                 break;
 
         }
@@ -276,16 +284,23 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
     }
 
-    private void connect2BtA2dp(BluetoothDevice device) {
-        InWallTesterActivity.this.setProgressBar(ActivityState.CONNECTED);
-        if (device.getBondState() != BluetoothDevice.BOND_BONDED)
-                createBond(device);
-        else {
-            if (mBtA2dpConnectionManager!=null)
-                mBtA2dpConnectionManager.disconnectBluetoothA2dp();
-            if (mBtA2dpConnectionManager!=null)
-                mBtA2dpConnectionManager.connectBluetoothA2dp(device);
+    private void bond2BtA2dp(BluetoothDevice device) {
+        if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
+            Log.e(TAG, "createBond");
+            createBond(device);
+        } else {
+            connect2BtA2dp(device);
         }
+    }
+
+
+    private void connect2BtA2dp(BluetoothDevice device) {
+        Log.e(TAG, "connect2BtA2dp");
+        if (mBtA2dpConnectionManager!=null)
+            mBtA2dpConnectionManager.disconnectBluetoothA2dp();
+        if (mBtA2dpConnectionManager!=null)
+            mBtA2dpConnectionManager.connectBluetoothA2dp(device);
+
     }
 
     public void createBond(BluetoothDevice btDevice)
@@ -316,7 +331,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
     }
 
-    public void playBt()
+/*    public void playBt()
     {
         new Handler().postDelayed(new Runnable() {
             public void run() {
@@ -324,11 +339,11 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
                     long eventtime = SystemClock.uptimeMillis() - 1;
                     KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
-                    am.dispatchMediaKeyEvent(downEvent);
+                    mAudioManager.dispatchMediaKeyEvent(downEvent);
 
                     eventtime++;
                     KeyEvent upEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
-                    am.dispatchMediaKeyEvent(upEvent);
+                    mAudioManager.dispatchMediaKeyEvent(upEvent);
                 } else {
                     long eventtime = SystemClock.uptimeMillis() - 1;
 
@@ -349,17 +364,17 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
             }
         }, 1500);
     }
-
+*/
     public void stopPlayBt()
     {
         if (Build.VERSION.SDK_INT >= 19) {
             long eventtime = SystemClock.uptimeMillis() - 1;
             KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_STOP, 0);
-            am.dispatchMediaKeyEvent(downEvent);
+            mAudioManager.dispatchMediaKeyEvent(downEvent);
 
             eventtime++;
             KeyEvent upEvent = new KeyEvent(eventtime,eventtime,KeyEvent.ACTION_UP,KeyEvent.KEYCODE_MEDIA_STOP, 0);
-            am.dispatchMediaKeyEvent(upEvent);
+            mAudioManager.dispatchMediaKeyEvent(upEvent);
         } else {
             long eventtime = SystemClock.uptimeMillis() - 1;
 
