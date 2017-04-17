@@ -5,6 +5,7 @@ package es.carlosrolindez.inwalltester;
  */
 
 public class DeviceFilter {
+    public static final String TAG = "ISELECT";
     private static final String inWallFootprint = "00:0D:18";
     private static final String inWall2Footprint = "5C:0E:23";
     private static final String iSelectFootprint = "00:08:F4";
@@ -16,7 +17,7 @@ public class DeviceFilter {
     }
 
     public static boolean filterName(String name) {
-        return (name.length() == 9) && (name.substring(0, 3).equals("BTC-"));
+        return (name.length() == 9) && (name.substring(0, 4).equals("BTC-"));
     }
 
     public static int musicTrack(int numTrack) {

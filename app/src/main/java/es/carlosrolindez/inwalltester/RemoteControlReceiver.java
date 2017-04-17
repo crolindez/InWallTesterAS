@@ -27,9 +27,11 @@ public class RemoteControlReceiver extends BroadcastReceiver {
                     Log.e(TAG, "PLAY");
                     if (mediaPlayer == null) {
                         AudioManager mAudioManager = (AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
-                        mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int)(mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)), 0);
+                        if (DeviceFilter.TAG.equals("ISELECT"))
+                            mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int)(mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)), 0);
                         mediaPlayer = MediaPlayer.create(context, DeviceFilter.musicTrack(0));
-                        //              mediaPlayer.setLooping(true);
+                        if (DeviceFilter.TAG.equals("INWALL"))
+                            mediaPlayer.setLooping(true);
                         mediaPlayer.start();
                     }
                 }
@@ -44,7 +46,7 @@ public class RemoteControlReceiver extends BroadcastReceiver {
         		if(mediaPlayer!=null)
         		{
                     mediaPlayer.stop();
-  //                  mediaPlayer.setLooping(false);
+                    mediaPlayer.setLooping(false);
                     mediaPlayer.release();
                     mediaPlayer = null;
         		}	
@@ -53,10 +55,11 @@ public class RemoteControlReceiver extends BroadcastReceiver {
                     Log.e(TAG, "NEXT");
                     if (mediaPlayer != null) {
                         mediaPlayer.stop();
-                        //                    mediaPlayer.setLooping(false);
+                        mediaPlayer.setLooping(false);
                         mediaPlayer.release();
                         mediaPlayer = MediaPlayer.create(context, DeviceFilter.musicTrack(1));
-                        //                   mediaPlayer.setLooping(true);
+                        if (DeviceFilter.TAG.equals("INWALL"))
+                            mediaPlayer.setLooping(true);
                         mediaPlayer.start();
                     }
                 }

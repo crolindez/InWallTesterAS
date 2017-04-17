@@ -204,6 +204,16 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
     @Override
     public void addRfDevice(String name, BluetoothDevice device) {
         if (activityState!=ActivityState.SCANNING) {
+            message.setText(device.getName());
+            if (!DeviceFilter.filterName(device.getName())) {
+                message.setTextColor(Color.parseColor("#FF0000"));
+            } else {
+                message.setTextColor(Color.parseColor("#00FF00"));
+                if (!deviceList.contains(device.getName())) {
+                    deviceList.add(0, device.getName());
+                    deviceListAdapter.notifyDataSetChanged();
+                }
+            }
             return;
         }
 
@@ -227,11 +237,11 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
             case CONNECTED:
                     Toast.makeText(this, device.getName() + " Connected", Toast.LENGTH_SHORT).show();
-
-
+                    Log.e(TAG,"Name: " + device.getName());
+                    Log.e(TAG,"Address: " + device.getAddress());
                     message.setText(device.getName());
                     messageAux.setText(device.getAddress());
-                    if (DeviceFilter.filterName(device.getName())) {
+                    if (!DeviceFilter.filterName(device.getName())) {
                         message.setTextColor(Color.parseColor("#FF0000"));
                     } else {
                         message.setTextColor(Color.parseColor("#00FF00"));
@@ -261,6 +271,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
                 if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
                     Toast.makeText(this, device.getName() + " Bonded", Toast.LENGTH_SHORT).show();
                     connect2BtA2dp(device);
+                    if (DeviceFilter.TAG.equals("INWALL")) playBt();
 
                 }
                 break;
@@ -331,7 +342,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
     }
 
-/*    public void playBt()
+    public void playBt()
     {
         new Handler().postDelayed(new Runnable() {
             public void run() {
@@ -364,7 +375,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
             }
         }, 1500);
     }
-*/
+
     public void stopPlayBt()
     {
         if (Build.VERSION.SDK_INT >= 19) {
