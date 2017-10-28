@@ -13,10 +13,12 @@ public class BtDevice extends RfDevice<BluetoothDevice> implements Parcelable{
 
     public boolean deviceBonded;
 
+
     public BtDevice(String name, BluetoothDevice device) {
         super(name,device,0);
         deviceBonded = (device.getBondState()!=BOND_NONE);
     }
+
 
     @Override
     public String getAddress() {
@@ -36,7 +38,7 @@ public class BtDevice extends RfDevice<BluetoothDevice> implements Parcelable{
         parcel.writeString(this.deviceName);
     }
 
-    public static final Parcelable.Creator<BtDevice> CREATOR = new Parcelable.Creator<BtDevice>() {
+    public static final Creator<BtDevice> CREATOR = new Creator<BtDevice>() {
 
         @Override
         public BtDevice createFromParcel(Parcel parcel)

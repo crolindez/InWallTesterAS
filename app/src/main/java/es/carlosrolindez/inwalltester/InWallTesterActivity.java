@@ -32,6 +32,13 @@ import java.util.ArrayList;
 import es.carlosrolindez.btcomm.BtListenerManager;
 import es.carlosrolindez.btcomm.bta2dpcomm.BtA2dpConnectionManager;
 
+/**
+ * Last updated by Carlos on 28/10/2017.
+ * BT/RF libraries used as they are: untouched.
+ * Improved main activity for a good coordination with the libraries
+ * increase 1Db the audio files to fit into the testes windows
+ */
+
 public class InWallTesterActivity extends AppCompatActivity implements BtListenerManager.RfListener<BluetoothDevice,BtListenerManager.BtEvent>,
         BtA2dpConnectionManager.BtA2dpProxyListener {
 
@@ -58,7 +65,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 	private ComponentName mRemoteControlResponder;
     private MediaSession mSession;
 
-
+    private String MAC;
 
     @Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -93,7 +100,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
     protected void onStart() {
         super.onStart();
         mAudioManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
-        if (mBtA2dpConnectionManager!=null) mBtA2dpConnectionManager.disconnectBluetoothA2dp();
+        if (mBtA2dpConnectionManager!=null) mBtA2dpConnectionManager.disconnectAnyBluetoothA2dp();
     }
 
 
@@ -111,46 +118,45 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
 
 
-    @SuppressWarnings("deprecation")
+
     @Override
     public void onResume() {
         super.onResume();
+        Log.e(TAG,"onResume");
         if (!mBluetoothAdapter.isEnabled()) {
             Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
         }
 
-        setState(activityState);
 
-        if (Build.VERSION.SDK_INT < 21) {
-            mRemoteControlResponder = new ComponentName(getPackageName(),RemoteControlReceiver.class.getName());
-            mAudioManager.registerMediaButtonEventReceiver(mRemoteControlResponder);
-        } else {
-            mSession =  new MediaSession(this,getPackageName());
-            Intent intent = new Intent(this, RemoteControlReceiver.class);
-            PendingIntent pintent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-            mSession.setMediaButtonReceiver(pintent);
-            mSession.setActive(true);
-            PlaybackState state = new PlaybackState.Builder()
-                    .setActions(PlaybackState.ACTION_FAST_FORWARD | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP)
-                    .setState(PlaybackState.STATE_PLAYING, 0, 1, PlaybackState.PLAYBACK_POSITION_UNKNOWN)
-                    .build();
-            // TODO Next, previous
-            mSession.setPlaybackState(state);
+        setState(activityState);
+        if (activityState==ActivityState.SCANNING) {
+            Log.e(TAG,"onResume: openManager");
+            mBtA2dpConnectionManager.openManager();
+            mBtListenerManager.setListenerBtDevices();
         }
+
+        mSession =  new MediaSession(this,getPackageName());
+        Intent intent = new Intent(this, RemoteControlReceiver.class);
+        PendingIntent pintent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        mSession.setMediaButtonReceiver(pintent);
+        mSession.setActive(true);
+        PlaybackState state = new PlaybackState.Builder()
+                .setActions(PlaybackState.ACTION_FAST_FORWARD | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP)
+                .setState(PlaybackState.STATE_PLAYING, 0, 1, PlaybackState.PLAYBACK_POSITION_UNKNOWN)
+                .build();
+        // TODO Next, previous
+        mSession.setPlaybackState(state);
+
 
     }	
 
-	@SuppressWarnings("deprecation")
     @Override
 	protected void onPause() {
 
 		super.onPause();
-        if (Build.VERSION.SDK_INT < 21) {
-            mAudioManager.unregisterMediaButtonEventReceiver(mRemoteControlResponder);
-        } else {
-            mSession.release();
-        }
+
+        mSession.release();
 
 	}
 
@@ -185,16 +191,21 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
         activityState = state;
         switch (state) {
             case CONNECTED:
+                Log.e(TAG,"setState CONNECTED");
                 if (mActionProgressItem!=null)  mActionProgressItem.setVisible(false);
                 if (scanButton!=null)           scanButton.setVisible(true);
+                mBluetoothAdapter.cancelDiscovery();
                 break;
 
             case SCANNING:
+                MAC = null;
+                Log.e(TAG,"setState SCANNING");
                 if (mActionProgressItem!=null)  mActionProgressItem.setVisible(true);
                 if (scanButton!=null)           scanButton.setVisible(false);
+                Log.e(TAG,"startDiscovery");
                 mBluetoothAdapter.startDiscovery();
-                if (mBtA2dpConnectionManager!=null) mBtA2dpConnectionManager.disconnectBluetoothA2dp();
-                if (mBtListenerManager!=null) mBtListenerManager.searchBtDevices();
+                if (mBtA2dpConnectionManager!=null) mBtA2dpConnectionManager.disconnectAnyBluetoothA2dp();
+
                 break;
 
         }
@@ -203,7 +214,16 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
     @Override
     public void addRfDevice(String name, BluetoothDevice device) {
-        if (activityState!=ActivityState.SCANNING) {
+        if (activityState==ActivityState.CONNECTED) {
+            if (MAC==null) {
+                Log.e(TAG,"name null rejected");
+                return;
+            }
+            if (!device.getAddress().equals(MAC)) {
+                Log.e(TAG,"name rejected");
+                return;
+            }
+            Log.e(TAG,"addRfDevice:" +device.getName());
             message.setText(device.getName());
             if (!DeviceFilter.filterName(device.getName())) {
                 message.setTextColor(Color.parseColor("#FF0000"));
@@ -222,6 +242,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
         if (DeviceFilter.filterAddress(device.getAddress())) {
             if (activityState==ActivityState.SCANNING) {
                 setState(ActivityState.CONNECTED);
+                MAC = device.getAddress();
                 bond2BtA2dp(device);
             }
         }
@@ -230,7 +251,9 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
     public void notifyRfEvent(BluetoothDevice device,  BtListenerManager.BtEvent event) {
         switch (event) {
             case DISCOVERY_FINISHED:
+                Log.e(TAG,"Discovery finished");
                 if (activityState==ActivityState.SCANNING) {
+                    Log.e(TAG,"Discovery re-start");
                     mBluetoothAdapter.startDiscovery();
                 }
                 break;
@@ -254,6 +277,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
                 break;
 
             case DISCONNECTED:
+                Log.e(TAG,"Disconnected");
                 message.setText(this.getResources().getString(R.string.searching));
                 message.setTextColor(Color.parseColor("#dddddd"));
                 messageAux.setText("");
@@ -268,10 +292,11 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
                 break;
 
             case BONDED:
+                Log.e(TAG,"bonded");
                 if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
                     Toast.makeText(this, device.getName() + " Bonded", Toast.LENGTH_SHORT).show();
                     connect2BtA2dp(device);
-                    if (DeviceFilter.TAG.equals("INWALL")) playBt();
+       //             if (DeviceFilter.TAG.equals("ISELECT")) playBt();
 
                 }
                 break;
@@ -283,11 +308,12 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
         switch (event) {
             case CONNECTED:
-                Log.e(TAG,"A2DP CONNECTED");
+                Log.e(TAG,"A2DP event CONNECTED");
+                if (DeviceFilter.TAG.equals("INWALL")) playBt();
                 break;
 
             case DISCONNECTED:
-                Log.e(TAG,"A2DP DISCONNECTED");
+                Log.e(TAG,"A2DP event DISCONNECTED");
                 break;
 
         }
@@ -308,7 +334,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
     private void connect2BtA2dp(BluetoothDevice device) {
         Log.e(TAG, "connect2BtA2dp");
         if (mBtA2dpConnectionManager!=null)
-            mBtA2dpConnectionManager.disconnectBluetoothA2dp();
+            mBtA2dpConnectionManager.disconnectAnyBluetoothA2dp();
         if (mBtA2dpConnectionManager!=null)
             mBtA2dpConnectionManager.connectBluetoothA2dp(device);
 
@@ -316,19 +342,7 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
     public void createBond(BluetoothDevice btDevice)
     {
-        if (Build.VERSION.SDK_INT >= 19) {
-            btDevice.createBond();
-        } else {
-            try
-            {
-                Class class1 = Class.forName("android.bluetooth.BluetoothDevice");
-                Method createBondMethod = class1.getMethod("createBond");
-                createBondMethod.invoke(btDevice);
-            }
-            catch (Exception e)
-            {
-            }
-        }
+        btDevice.createBond();
     }
 
     public boolean removeBond(BluetoothDevice btDevice) {
@@ -346,62 +360,28 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
     {
         new Handler().postDelayed(new Runnable() {
             public void run() {
-                if (Build.VERSION.SDK_INT >= 19) {
 
-                    long eventtime = SystemClock.uptimeMillis() - 1;
-                    KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
-                    mAudioManager.dispatchMediaKeyEvent(downEvent);
+                long eventtime = SystemClock.uptimeMillis() - 1;
+                KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
+                mAudioManager.dispatchMediaKeyEvent(downEvent);
 
-                    eventtime++;
-                    KeyEvent upEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
-                    mAudioManager.dispatchMediaKeyEvent(upEvent);
-                } else {
-                    long eventtime = SystemClock.uptimeMillis() - 1;
+                eventtime++;
+                KeyEvent upEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
+                mAudioManager.dispatchMediaKeyEvent(upEvent);
 
-                    Intent downIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
-                    Intent upIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
-
-                    KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
-                    eventtime++;
-                    KeyEvent upEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY, 0);
-
-
-                    downIntent.putExtra(Intent.EXTRA_KEY_EVENT, downEvent);
-                    sendBroadcast(downIntent, null);
-
-                    upIntent.putExtra(Intent.EXTRA_KEY_EVENT, upEvent);
-                    sendBroadcast(upIntent, null);
-                }
             }
         }, 1500);
     }
 
     public void stopPlayBt()
     {
-        if (Build.VERSION.SDK_INT >= 19) {
-            long eventtime = SystemClock.uptimeMillis() - 1;
-            KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_STOP, 0);
-            mAudioManager.dispatchMediaKeyEvent(downEvent);
+        long eventtime = SystemClock.uptimeMillis() - 1;
+        KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_STOP, 0);
+        mAudioManager.dispatchMediaKeyEvent(downEvent);
 
-            eventtime++;
-            KeyEvent upEvent = new KeyEvent(eventtime,eventtime,KeyEvent.ACTION_UP,KeyEvent.KEYCODE_MEDIA_STOP, 0);
-            mAudioManager.dispatchMediaKeyEvent(upEvent);
-        } else {
-            long eventtime = SystemClock.uptimeMillis() - 1;
-
-            Intent downIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
-            Intent upIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
-
-            KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_STOP, 0);
-            eventtime++;
-            KeyEvent upEvent = 	 new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_STOP, 0);
-
-            downIntent.putExtra(Intent.EXTRA_KEY_EVENT, downEvent);
-            this.sendBroadcast(downIntent, null);
-
-            upIntent.putExtra(Intent.EXTRA_KEY_EVENT, upEvent);
-            this.sendBroadcast(upIntent, null);
-        }
+        eventtime++;
+        KeyEvent upEvent = new KeyEvent(eventtime,eventtime,KeyEvent.ACTION_UP,KeyEvent.KEYCODE_MEDIA_STOP, 0);
+        mAudioManager.dispatchMediaKeyEvent(upEvent);
     }
 
 }

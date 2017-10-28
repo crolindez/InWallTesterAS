@@ -27,12 +27,21 @@ public class RemoteControlReceiver extends BroadcastReceiver {
                     Log.e(TAG, "PLAY");
                     if (mediaPlayer == null) {
                         AudioManager mAudioManager = (AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
-                        if (DeviceFilter.TAG.equals("ISELECT"))
-                            mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int)(mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)), 0);
+                        Log.e(TAG, "PLAY 0");
+  //                      if (DeviceFilter.TAG.equals("ISELECT")) {
+  //                          Log.e(TAG, "PLAY 1");
+  //                          mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int) (mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)), 0);
+  ///                          Log.e(TAG, "PLAY 2");
+  //                          mAudioManager.setBluetoothScoOn(false);
+  //                          Log.e(TAG, "PLAY 3");
+  //                      }
                         mediaPlayer = MediaPlayer.create(context, DeviceFilter.musicTrack(0));
+  //                      Log.e(TAG, "PLAY 4");
                         if (DeviceFilter.TAG.equals("INWALL"))
                             mediaPlayer.setLooping(true);
+   //                     Log.e(TAG, "PLAY 5");
                         mediaPlayer.start();
+  //                      Log.e(TAG, "PLAY 6");
                     }
                 }
         			

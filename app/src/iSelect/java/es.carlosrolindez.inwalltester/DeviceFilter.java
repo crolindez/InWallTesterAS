@@ -1,8 +1,6 @@
 package es.carlosrolindez.inwalltester;
 
-/**
- * Created by Carlos on 08/04/2017.
- */
+
 
 public class DeviceFilter {
     public static final String TAG = "ISELECT";

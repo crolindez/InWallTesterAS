@@ -3,13 +3,10 @@ package es.carlosrolindez.rfcomm;
 import android.content.Context;
 import android.content.Intent;
 import android.support.v4.content.LocalBroadcastManager;
-import android.util.Log;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.Socket;
-import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -33,7 +30,7 @@ public abstract class RfCommManager<TypeRfSocket> {
 
     private InputStream iStream;
     private OutputStream oStream;
-    BlockingQueue<String> mMessageQueue;
+    private BlockingQueue<String> mMessageQueue;
     private final int QUEUE_CAPACITY = 5;
 
     private final LocalBroadcastManager mLocalBroadcastManager;
@@ -62,7 +59,7 @@ public abstract class RfCommManager<TypeRfSocket> {
         if ((iStream==null) || (oStream==null)) {
             stopSocket();
         }
-        mMessageQueue = new ArrayBlockingQueue<String>(QUEUE_CAPACITY);
+        mMessageQueue = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
 
         connected = true;
 
@@ -95,7 +92,6 @@ public abstract class RfCommManager<TypeRfSocket> {
                         mLocalBroadcastManager.sendBroadcast(intent);
                         bufferNumber++;
                     } catch (IOException e) {
-                        Log.e(TAG,"End of socket");
                         intent = new Intent(STOPPED);
                         mLocalBroadcastManager.sendBroadcast(intent);
                         RfCommManager.this.socket = null;
@@ -120,10 +116,7 @@ public abstract class RfCommManager<TypeRfSocket> {
                     try {
                         String msg = mMessageQueue.take();
                         oStream.write(msg.getBytes(Charset.defaultCharset()));
-                    } catch (InterruptedException ie) {
-                        Log.e(TAG, "Message sending loop interrupted, exiting");
-                        stopSocket();
-                    } catch (IOException e) {
+                    } catch (InterruptedException | IOException ie) {
                         stopSocket();
                     }
                 }
