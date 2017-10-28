@@ -11,13 +11,11 @@ import android.graphics.Color;
 import android.media.AudioManager;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -122,7 +120,6 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
     @Override
     public void onResume() {
         super.onResume();
-        Log.e(TAG,"onResume");
         if (!mBluetoothAdapter.isEnabled()) {
             Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
@@ -131,7 +128,6 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
         setState(activityState);
         if (activityState==ActivityState.SCANNING) {
-            Log.e(TAG,"onResume: openManager");
             mBtA2dpConnectionManager.openManager();
             mBtListenerManager.setListenerBtDevices();
         }
@@ -191,7 +187,6 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
         activityState = state;
         switch (state) {
             case CONNECTED:
-                Log.e(TAG,"setState CONNECTED");
                 if (mActionProgressItem!=null)  mActionProgressItem.setVisible(false);
                 if (scanButton!=null)           scanButton.setVisible(true);
                 mBluetoothAdapter.cancelDiscovery();
@@ -199,10 +194,8 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
             case SCANNING:
                 MAC = null;
-                Log.e(TAG,"setState SCANNING");
                 if (mActionProgressItem!=null)  mActionProgressItem.setVisible(true);
                 if (scanButton!=null)           scanButton.setVisible(false);
-                Log.e(TAG,"startDiscovery");
                 mBluetoothAdapter.startDiscovery();
                 if (mBtA2dpConnectionManager!=null) mBtA2dpConnectionManager.disconnectAnyBluetoothA2dp();
 
@@ -216,14 +209,11 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
     public void addRfDevice(String name, BluetoothDevice device) {
         if (activityState==ActivityState.CONNECTED) {
             if (MAC==null) {
-                Log.e(TAG,"name null rejected");
                 return;
             }
             if (!device.getAddress().equals(MAC)) {
-                Log.e(TAG,"name rejected");
                 return;
             }
-            Log.e(TAG,"addRfDevice:" +device.getName());
             message.setText(device.getName());
             if (!DeviceFilter.filterName(device.getName())) {
                 message.setTextColor(Color.parseColor("#FF0000"));
@@ -251,17 +241,13 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
     public void notifyRfEvent(BluetoothDevice device,  BtListenerManager.BtEvent event) {
         switch (event) {
             case DISCOVERY_FINISHED:
-                Log.e(TAG,"Discovery finished");
                 if (activityState==ActivityState.SCANNING) {
-                    Log.e(TAG,"Discovery re-start");
                     mBluetoothAdapter.startDiscovery();
                 }
                 break;
 
             case CONNECTED:
                     Toast.makeText(this, device.getName() + " Connected", Toast.LENGTH_SHORT).show();
-                    Log.e(TAG,"Name: " + device.getName());
-                    Log.e(TAG,"Address: " + device.getAddress());
                     message.setText(device.getName());
                     messageAux.setText(device.getAddress());
                     if (!DeviceFilter.filterName(device.getName())) {
@@ -273,11 +259,9 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
                             deviceListAdapter.notifyDataSetChanged();
                         }
                     }
-  //              playBt();
                 break;
 
             case DISCONNECTED:
-                Log.e(TAG,"Disconnected");
                 message.setText(this.getResources().getString(R.string.searching));
                 message.setTextColor(Color.parseColor("#dddddd"));
                 messageAux.setText("");
@@ -292,11 +276,9 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
                 break;
 
             case BONDED:
-                Log.e(TAG,"bonded");
                 if (device.getBondState()==BluetoothDevice.BOND_BONDED) {
                     Toast.makeText(this, device.getName() + " Bonded", Toast.LENGTH_SHORT).show();
                     connect2BtA2dp(device);
-       //             if (DeviceFilter.TAG.equals("ISELECT")) playBt();
 
                 }
                 break;
@@ -308,12 +290,10 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
         switch (event) {
             case CONNECTED:
-                Log.e(TAG,"A2DP event CONNECTED");
                 if (DeviceFilter.TAG.equals("INWALL")) playBt();
                 break;
 
             case DISCONNECTED:
-                Log.e(TAG,"A2DP event DISCONNECTED");
                 break;
 
         }
@@ -323,7 +303,6 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
     private void bond2BtA2dp(BluetoothDevice device) {
         if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
-            Log.e(TAG, "createBond");
             createBond(device);
         } else {
             connect2BtA2dp(device);
@@ -332,7 +311,6 @@ public class InWallTesterActivity extends AppCompatActivity implements BtListene
 
 
     private void connect2BtA2dp(BluetoothDevice device) {
-        Log.e(TAG, "connect2BtA2dp");
         if (mBtA2dpConnectionManager!=null)
             mBtA2dpConnectionManager.disconnectAnyBluetoothA2dp();
         if (mBtA2dpConnectionManager!=null)

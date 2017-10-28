@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
-import android.util.Log;
 import android.view.KeyEvent;
 
 
@@ -24,34 +23,26 @@ public class RemoteControlReceiver extends BroadcastReceiver {
             KeyEvent event = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
             if ((KeyEvent.KEYCODE_MEDIA_PLAY == event.getKeyCode()) || (KeyEvent.KEYCODE_MEDIA_PAUSE == event.getKeyCode()))  {
                 if (KeyEvent.ACTION_UP == event.getAction()) {
-                    Log.e(TAG, "PLAY");
                     if (mediaPlayer == null) {
                         AudioManager mAudioManager = (AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
-                        Log.e(TAG, "PLAY 0");
+
   //                      if (DeviceFilter.TAG.equals("ISELECT")) {
-  //                          Log.e(TAG, "PLAY 1");
   //                          mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int) (mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)), 0);
-  ///                          Log.e(TAG, "PLAY 2");
   //                          mAudioManager.setBluetoothScoOn(false);
-  //                          Log.e(TAG, "PLAY 3");
   //                      }
                         mediaPlayer = MediaPlayer.create(context, DeviceFilter.musicTrack(0));
-  //                      Log.e(TAG, "PLAY 4");
+
                         if (DeviceFilter.TAG.equals("INWALL"))
                             mediaPlayer.setLooping(true);
-   //                     Log.e(TAG, "PLAY 5");
                         mediaPlayer.start();
-  //                      Log.e(TAG, "PLAY 6");
                     }
                 }
         			
             } else if  ( (KeyEvent.KEYCODE_MEDIA_PAUSE == event.getKeyCode()) ) {
-                Log.e(TAG,"PAUSE");
         		if (mediaPlayer!=null) {
         			mediaPlayer.pause();
         		}
             } else if (KeyEvent.KEYCODE_MEDIA_STOP == event.getKeyCode()) {
-                Log.e(TAG,"STOP");
         		if(mediaPlayer!=null)
         		{
                     mediaPlayer.stop();
@@ -61,19 +52,17 @@ public class RemoteControlReceiver extends BroadcastReceiver {
         		}	
             } else if (KeyEvent.KEYCODE_MEDIA_NEXT == event.getKeyCode()) {
                 if (KeyEvent.ACTION_UP == event.getAction()) {
-                    Log.e(TAG, "NEXT");
                     if (mediaPlayer != null) {
                         mediaPlayer.stop();
                         mediaPlayer.setLooping(false);
                         mediaPlayer.release();
                         mediaPlayer = MediaPlayer.create(context, DeviceFilter.musicTrack(1));
-                        if (DeviceFilter.TAG.equals("INWALL"))
                             mediaPlayer.setLooping(true);
                         mediaPlayer.start();
                     }
                 }
-            } else
-                Log.e(TAG,event.toString());
+            } //else
+               // Log.e(TAG,event.toString());
         }
 	}
 }

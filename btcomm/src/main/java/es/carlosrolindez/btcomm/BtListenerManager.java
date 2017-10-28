@@ -6,7 +6,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.util.Log;
 
 import java.util.Set;
 
@@ -82,7 +81,6 @@ public class BtListenerManager extends RfListenerManager<BluetoothDevice,BtListe
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 // Get the BluetoothDevice object from the Intent
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                Log.e(TAG,"BT Found:" + device.getName() );
                 if (mRfListener != null)
                     mRfListener.addRfDevice(device.getName(), device);
 
@@ -90,25 +88,21 @@ public class BtListenerManager extends RfListenerManager<BluetoothDevice,BtListe
             } else if (BluetoothDevice.ACTION_NAME_CHANGED.equals(action)) {
                 // Get the BluetoothDevice object from the Intent
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                Log.e(TAG,"BT Name Changed:" + device.getName() );
                 if (mRfListener != null)
                     mRfListener.addRfDevice(device.getName(), device);
 
                 // When discovery is finished, change the Activity title
             } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-                Log.e(TAG,"BT Discovery Finished");
                 if (mRfListener != null)
                     mRfListener.notifyRfEvent(null, BtEvent.DISCOVERY_FINISHED);
 
             } else if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                Log.e(TAG,"BT ACL Connect: " +device.getName());
                 if (mRfListener != null)
                     mRfListener.notifyRfEvent(device, BtEvent.CONNECTED);
 
             } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                Log.e(TAG,"BT ACL Disconnect: " +device.getName());
                 if (mRfListener != null)
                     mRfListener.notifyRfEvent(device, BtEvent.DISCONNECTED);
 
@@ -116,25 +110,21 @@ public class BtListenerManager extends RfListenerManager<BluetoothDevice,BtListe
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 switch (device.getBondState()) {
                     case BluetoothDevice.BOND_BONDED:
-                        Log.e(TAG,"BT Bond State Changed - Bonded: " +device.getName());
                         if (mRfListener != null) {
                             mRfListener.notifyRfEvent(device, BtEvent.BONDED);
                         }
                         break;
                     case BluetoothDevice.BOND_BONDING:
-                        Log.e(TAG,"BT Bond State Changed - Bonding: " +device.getName());
                         if (mRfListener != null) {
                             mRfListener.notifyRfEvent(device, BtEvent.CHANGING);
                         }
                         break;
                     case BluetoothDevice.BOND_NONE:
-                        Log.e(TAG,"BT Bond State Changed - None: " +device.getName());
                         if (mRfListener != null) {
                             mRfListener.notifyRfEvent(device, BtEvent.NOT_BONDED);
                         }
                         break;
                     default:
-                    Log.e(TAG,"BT Bond State Changed - Others: " +device.getName());
                 }
             }
         }
