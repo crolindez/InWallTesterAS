@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.util.Log;
 import android.view.KeyEvent;
 
 
@@ -18,11 +19,14 @@ public class RemoteControlReceiver extends BroadcastReceiver {
 
 	@Override
 	public void onReceive(Context context, Intent intent) {
+        Log.e(TAG,"OnReceive");
         if (Intent.ACTION_MEDIA_BUTTON.equals(intent.getAction())) {
+
 
             KeyEvent event = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
             if ((KeyEvent.KEYCODE_MEDIA_PLAY == event.getKeyCode()) || (KeyEvent.KEYCODE_MEDIA_PAUSE == event.getKeyCode()))  {
                 if (KeyEvent.ACTION_UP == event.getAction()) {
+                    Log.e(TAG,"OnReceive PLAY");
                     if (mediaPlayer == null) {
                         AudioManager mAudioManager = (AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
 
@@ -39,10 +43,12 @@ public class RemoteControlReceiver extends BroadcastReceiver {
                 }
         			
             } else if  ( (KeyEvent.KEYCODE_MEDIA_PAUSE == event.getKeyCode()) ) {
+                Log.e(TAG,"OnReceive PAUSE");
         		if (mediaPlayer!=null) {
         			mediaPlayer.pause();
         		}
             } else if (KeyEvent.KEYCODE_MEDIA_STOP == event.getKeyCode()) {
+                Log.e(TAG,"OnReceive STOP");
         		if(mediaPlayer!=null)
         		{
                     mediaPlayer.stop();
@@ -51,6 +57,7 @@ public class RemoteControlReceiver extends BroadcastReceiver {
                     mediaPlayer = null;
         		}	
             } else if (KeyEvent.KEYCODE_MEDIA_NEXT == event.getKeyCode()) {
+                Log.e(TAG,"OnReceive NEXT");
                 if (KeyEvent.ACTION_UP == event.getAction()) {
                     if (mediaPlayer != null) {
                         mediaPlayer.stop();

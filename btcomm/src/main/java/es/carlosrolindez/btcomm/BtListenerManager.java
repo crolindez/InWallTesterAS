@@ -15,7 +15,7 @@ import es.carlosrolindez.rfcomm.RfListenerManager;
 public class BtListenerManager extends RfListenerManager<BluetoothDevice,BtListenerManager.BtEvent> {
     private static final String TAG = "BtListenerManager";
 
-    public enum BtEvent { DISCOVERY_FINISHED, BONDED, CONNECTED, DISCONNECTED , CHANGING, NOT_BONDED}
+    public enum BtEvent { DISCOVERY_FINISHED, BONDED, CONNECTED, DISCONNECTED , CHANGING, NOT_BONDED, PAIRING_REQUEST}
 
     private final Context mContextBt;
 
@@ -54,6 +54,7 @@ public class BtListenerManager extends RfListenerManager<BluetoothDevice,BtListe
             IntentFilter filter4 = new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED);
             IntentFilter filter5 = new IntentFilter(BluetoothDevice.ACTION_ACL_DISCONNECTED);
             IntentFilter filter6 = new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+            IntentFilter filter7 = new IntentFilter(BluetoothDevice.ACTION_PAIRING_REQUEST);
 
             mContextBt.registerReceiver(mBtReceiver, filter1);
             mContextBt.registerReceiver(mBtReceiver, filter2);
@@ -61,6 +62,7 @@ public class BtListenerManager extends RfListenerManager<BluetoothDevice,BtListe
             mContextBt.registerReceiver(mBtReceiver, filter4);
             mContextBt.registerReceiver(mBtReceiver, filter5);
             mContextBt.registerReceiver(mBtReceiver, filter6);
+            mContextBt.registerReceiver(mBtReceiver, filter7);
         }
 
         mBtReceiverRegistered = true;
@@ -98,29 +100,41 @@ public class BtListenerManager extends RfListenerManager<BluetoothDevice,BtListe
 
             } else if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                if (mRfListener != null)
+                if (mRfListener != null) {
+ //                   Log.e(TAG, "ACTION_ACL_CONNECTED");
                     mRfListener.notifyRfEvent(device, BtEvent.CONNECTED);
+                }
 
             } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                if (mRfListener != null)
+                if (mRfListener != null) {
+ //                   Log.e(TAG, "ACTION_ACL_DISCONNECTED");
                     mRfListener.notifyRfEvent(device, BtEvent.DISCONNECTED);
-
+                }
+            } else if (BluetoothDevice.ACTION_PAIRING_REQUEST.equals(action)) {
+                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                if (mRfListener != null) {
+ //                   Log.e(TAG, "ACTION_PAIRING_REQUEST");
+                    mRfListener.notifyRfEvent(device, BtEvent.PAIRING_REQUEST);
+                }
             } else if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 switch (device.getBondState()) {
                     case BluetoothDevice.BOND_BONDED:
                         if (mRfListener != null) {
+ //                           Log.e(TAG,"BOND_BONDED");
                             mRfListener.notifyRfEvent(device, BtEvent.BONDED);
                         }
                         break;
                     case BluetoothDevice.BOND_BONDING:
                         if (mRfListener != null) {
+ //                           Log.e(TAG,"BOND_BONDING");
                             mRfListener.notifyRfEvent(device, BtEvent.CHANGING);
                         }
                         break;
                     case BluetoothDevice.BOND_NONE:
                         if (mRfListener != null) {
+  //                          Log.e(TAG,"BOND_NONE");
                             mRfListener.notifyRfEvent(device, BtEvent.NOT_BONDED);
                         }
                         break;
