@@ -19,7 +19,7 @@ public class DeviceFilter {
     }
 
     public static int musicTrack(int numTrack) {
-        if (numTrack==0) return R.raw.iselect_left;
-        else return R.raw.iselect_right;
+  /*      if (numTrack==0)*/ return R.raw.iselect;
+  //      else return R.raw.iselect_right;
     }
 }
